@@ -1,0 +1,155 @@
+---
+alwaysApply: true
+---
+
+# TypeScript Project Rules (Enterprise Default)
+
+# TypeScript Project Rules (Enterprise Default)
+
+## 0) Operating Mode (must follow)
+
+- This project is TypeScript. It may be a CLI tool and/or a web server. If unclear, ask which it is before implementing framework-specific changes.
+- Prefer correctness, security, maintainability, and reproducibility over speed.
+- Follow the repo’s existing conventions first (module system, folder structure, tooling). If absent, propose a standard layout and ask permission.
+
+## 1) Hard Requirements (definition of “done”)
+
+For any non-trivial change, ensure:
+
+- Types compile (`tsc --noEmit` or equivalent).
+- Lint + format pass.
+- Tests added/updated and passing.
+- Documentation updated (README / docs as appropriate).
+- A short verification plan is provided (how to run/test locally + in CI).
+
+If any item is not possible, explicitly state why and what would be needed.
+
+## 2) TypeScript & Node Standards
+
+- TypeScript must be in **strict** mode for production code (or document why not).
+- Avoid `any`. Prefer `unknown` + narrowing, and explicit types at module boundaries.
+- Avoid `@ts-ignore`. If unavoidable, require:
+  - a comment explaining why
+  - preferably a link to an issue/ticket
+- Prefer explicit error types/patterns (custom `Error` subclasses or typed result objects) for domain-level failures.
+
+## 3) Architecture Guidelines (works for CLI + server)
+
+- Keep a clean separation between:
+  - **core/domain logic** (pure, testable)
+  - **adapters/IO** (filesystem, HTTP, DB, external APIs)
+  - **entrypoints** (CLI command handlers / HTTP routes)
+- Isolate side effects; avoid hidden global state.
+- Add dependency injection only when it reduces coupling meaningfully—do not over-abstract.
+
+Suggested default layout (only if repo doesn’t already have one; ask first):
+
+- `src/core/` (domain + pure logic)
+- `src/infra/` (IO adapters: fs, db, http clients)
+- `src/cli/` (commands, argument parsing)
+- `src/server/` (http handlers, routing, middleware)
+- `src/index.ts` (main entry)
+- `tests/` (or colocated `__tests__`)
+
+## 4) Input Validation & Configuration (security baseline)
+
+- Treat **all external input as untrusted**:
+  - CLI args, env vars, HTTP bodies/queries/headers, files, webhooks.
+- Validate inputs with schemas (recommend Zod or equivalent).
+- Validate configuration at startup (fail fast with actionable messages).
+- Never log secrets; redact sensitive fields.
+- Provide `.env.example` (never commit real secrets).
+
+## 5) Testing Policy (required)
+
+- Every meaningful behavior change requires tests.
+- Use the testing pyramid:
+  - Unit tests for core logic
+  - Integration tests for adapters (fs/http/db) with deterministic setups/mocks/containers
+  - E2E tests for critical user flows (esp. servers)
+- Tests must be deterministic:
+  - no real network calls
+  - stable time (use fake timers where needed)
+- Prefer clear, behavior-focused tests over snapshot-only tests.
+
+## 6) CLI-specific Standards (apply when building a CLI)
+
+- Must provide:
+  - `--help` output
+  - predictable exit codes (0 success, non-zero failure)
+  - actionable error messages
+  - `--verbose` for debug logging if appropriate
+- Validate args + config before execution.
+- Avoid interactive prompts unless explicitly required.
+
+## 7) Server/API-specific Standards (apply when building a web service)
+
+- Validate request input (body/query/params) with schemas.
+- Provide consistent error responses (structured JSON).
+- Add timeouts for outbound calls and request handling where appropriate.
+- Support graceful shutdown (SIGTERM/SIGINT).
+- Add health endpoints:
+  - `GET /healthz` (liveness)
+  - `GET /readyz` (readiness; checks dependencies if applicable)
+- Security defaults:
+  - explicit CORS policy (don’t use permissive defaults without justification)
+  - rate limiting when exposed publicly (or document why not)
+  - request size limits
+
+## 8) Observability (enterprise default)
+
+- Use structured logging (JSON preferred for services).
+- Include correlation/request IDs for servers (and propagate to downstream calls when possible).
+- For services, implement basic metrics and/or OpenTelemetry where practical:
+  - request rate, error rate, latency
+  - key dependency call latency/error
+- Document what to monitor and what “normal” looks like (brief runbook).
+
+## 9) CI/CD Baseline Checklist (required for “enterprise-grade”)
+
+For this repo, maintain CI that runs on each PR:
+
+- install dependencies (with lockfile)
+- lint
+- typecheck
+- tests
+- build (if applicable)
+
+CD (when applicable) should:
+
+- produce versioned artifacts (npm package and/or Docker image)
+- include release notes/changelog or a clear summary
+- support rollback
+
+If CI/CD isn’t present yet, propose a minimal GitHub Actions pipeline and ask permission before adding it.
+
+## 10) Dependency Management
+
+- Prefer fewer dependencies; justify new ones.
+- Do not add heavy frameworks without explicit approval.
+- Keep lockfile committed.
+- Prefer maintained, widely-used libs; avoid unmaintained packages.
+- Add automated dependency updates if desired (Dependabot/Renovate) — ask first.
+
+## 11) Security & Supply Chain Defaults
+
+- Use least-privilege configs.
+- Avoid executing untrusted input.
+- For published packages or containers, document provenance expectations (where it’s built, what tags mean).
+- Never embed secrets in code or config committed to git.
+
+## 12) Release / Change Checklist (use for significant changes)
+
+Before calling work “done”, verify and report:
+
+- ✅ lint / typecheck / tests pass locally
+- ✅ CI status (or instructions to run CI-equivalent locally)
+- ✅ docs updated
+- ✅ security review notes (inputs validated, secrets handled, auth considered)
+- ✅ observability notes (logs/metrics/health checks)
+- ✅ deployment/rollback plan if service behavior changes
+
+## 13) Cursor Interaction Protocol (project-level)
+
+- Before making structural changes (new framework, new build system, CI/CD, Docker, monitoring stack, major refactors), present a plan + tradeoffs and ask permission.
+- Before adding/changing dependencies, ask permission unless it’s already used in the repo and the change is trivial.
