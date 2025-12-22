@@ -1,4 +1,4 @@
-# TODO - Email Filtering AI Agent
+# TODO - Mail Filter
 
 ## High Priority (Required for Production)
 

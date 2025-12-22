@@ -5,7 +5,7 @@ import { config, logger } from "./config.js";
  * Main entry point for the Email Filtering AI Agent
  */
 async function main(): Promise<void> {
-  logger.info("🚀 Email Filtering AI Agent starting...");
+  logger.info("🚀 Mail Filter starting...");
   logger.info(`   Batch size: ${config.maxEmailBatchSize}`);
   logger.info(`   Processing limit: ${config.emailProcessingLimit}`);
   logger.info(`   Custom rules: ${config.customFilteringRules.length}`);
@@ -57,7 +57,7 @@ async function main(): Promise<void> {
  */
 function printHelp(): void {
   console.log(`
-📧 Email Filtering AI Agent
+📧 Mail Filter
 
 USAGE:
   npm start [options]

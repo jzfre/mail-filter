@@ -1,7 +1,7 @@
 {
-  "name": "email-filtering-ai-agent",
+  "name": "mail-filter",
   "version": "1.0.0",
-  "description": "An intelligent email filtering system that uses OpenAI GPT to automatically categorize and filter your Gmail inbox",
+  "description": "AI-powered Gmail filter using OpenAI GPT to automatically categorize and manage your inbox",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -17,7 +17,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "keywords": [
     "email",

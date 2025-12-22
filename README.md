@@ -1,4 +1,4 @@
-# Email Filtering AI Agent
+# Mail Filter
 
 An intelligent email filtering system that uses OpenAI GPT to automatically categorize and filter your Gmail inbox. Built with TypeScript and Node.js.
 
@@ -10,7 +10,7 @@ An intelligent email filtering system that uses OpenAI GPT to automatically cate
 - **Gmail Integration**: Direct integration with Gmail API for email operations
 - **LangChain Integration**: Uses LangChain for structured AI workflow orchestration
 - **Type Safety**: Full TypeScript implementation with strict typing
-- **Error Handling**: Comprehensive error handling and logging
+- **Error Handling**: Comprehensive error handling with exponential backoff retry logic
 
 ## Architecture
 
@@ -33,7 +33,7 @@ This agent uses LangChain for workflow orchestration, with the following compone
 
    ```bash
    git clone <repository-url>
-   cd email-filtering-ai-agent
+   cd mail-filter
    ```
 
 2. **Install dependencies**:
@@ -45,10 +45,21 @@ This agent uses LangChain for workflow orchestration, with the following compone
 3. **Set up Gmail API**:
 
    - Go to [Google Cloud Console](https://console.cloud.google.com/)
-   - Create a new project or select an existing one
-   - Enable the Gmail API
-   - Create credentials (OAuth 2.0 Client ID for Desktop app)
-   - Download the JSON file and save it as `credentials.json` in the project root
+   - Create a new project (or select an existing one)
+   - Enable the **Gmail API**:
+     - Go to "APIs & Services" → "Library"
+     - Search for "Gmail API" → Enable it
+   - Configure **OAuth consent screen**:
+     - Go to "APIs & Services" → "OAuth consent screen"
+     - **Select "External"** (required for personal Gmail accounts)
+     - Fill in app name, support email, and developer email
+     - Add scopes: `gmail.readonly` and `gmail.modify`
+     - Add your email as a test user (required while app is in testing mode)
+   - Create **OAuth credentials**:
+     - Go to "APIs & Services" → "Credentials"
+     - Click "Create Credentials" → "OAuth 2.0 Client ID"
+     - Select "Desktop app" as the application type
+     - Download the JSON file and save it as `credentials.json` in the project root
 
 4. **Set environment variables**:
 
@@ -70,6 +81,17 @@ This agent uses LangChain for workflow orchestration, with the following compone
    npm run dev
    ```
 
+6. **First-time authentication**:
+
+   On first run, the app will prompt you to authorize Gmail access:
+   - A URL will be printed to the terminal
+   - Open the URL in your browser and sign in with your Google account
+   - Authorize the app to access your Gmail
+   - You'll be redirected to a localhost URL that won't load (this is normal)
+   - Copy the `code` parameter from the URL (between `code=` and `&scope=`)
+   - Paste the code back into the terminal and press Enter
+   - The app saves the token to `token.json` (auto-generated, don't commit this file)
+
 ## Configuration
 
 ### Environment Variables
@@ -78,7 +100,7 @@ This agent uses LangChain for workflow orchestration, with the following compone
 | ------------------------ | ------------------------------ | ------------------ |
 | `OPENAI_API_KEY`         | Your OpenAI API key            | Required           |
 | `GMAIL_CREDENTIALS_FILE` | Path to Gmail credentials file | `credentials.json` |
-| `GMAIL_TOKEN_FILE`       | Path to Gmail token file       | `token.json`       |
+| `GMAIL_TOKEN_FILE`       | Path to Gmail token file (auto-generated) | `token.json`       |
 | `MAX_EMAIL_BATCH_SIZE`   | Maximum emails per batch       | `50`               |
 | `EMAIL_PROCESSING_LIMIT` | Maximum emails to process      | `100`              |
 | `CUSTOM_FILTERING_RULES` | Comma-separated custom rules   | Optional           |
@@ -112,6 +134,25 @@ src/
 └── types.ts              # TypeScript type definitions
 ```
 
+## Development
+
+```bash
+# Run type checking
+npm run typecheck
+
+# Run linter
+npm run lint
+
+# Run tests
+npm test
+
+# Run tests with coverage
+npm run test:coverage
+
+# Run all checks (typecheck + lint + format)
+npm run check
+```
+
 ## Security Considerations
 
 - The agent accesses your Gmail account and reads email content
@@ -123,7 +164,7 @@ src/
 
 The agent includes comprehensive error handling:
 
-- Retry logic for API failures
+- Exponential backoff retry logic for API failures
 - Graceful degradation when AI analysis fails
 - Detailed error reporting in logs
 
