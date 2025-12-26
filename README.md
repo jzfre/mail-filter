@@ -96,15 +96,18 @@ This agent uses LangChain for workflow orchestration, with the following compone
 
 ### Environment Variables
 
-| Variable                 | Description                    | Default            |
-| ------------------------ | ------------------------------ | ------------------ |
-| `OPENAI_API_KEY`         | Your OpenAI API key            | Required           |
-| `GMAIL_CREDENTIALS_FILE` | Path to Gmail credentials file | `credentials.json` |
-| `GMAIL_TOKEN_FILE`       | Path to Gmail token file (auto-generated) | `token.json`       |
-| `MAX_EMAIL_BATCH_SIZE`   | Maximum emails per batch       | `50`               |
-| `EMAIL_PROCESSING_LIMIT` | Maximum emails to process      | `100`              |
-| `CUSTOM_FILTERING_RULES` | Comma-separated custom rules   | Optional           |
-| `LOG_LEVEL`              | Logging level                  | `info`             |
+| Variable                 | Description                               | Default                  |
+| ------------------------ | ----------------------------------------- | ------------------------ |
+| `OPENAI_API_KEY`         | Your OpenAI API key                       | Required                 |
+| `OPENAI_MODEL`           | OpenAI model to use                       | `gpt-4.1-mini`           |
+| `GMAIL_CREDENTIALS_FILE` | Path to Gmail credentials file            | `credentials.json`       |
+| `GMAIL_TOKEN_FILE`       | Path to Gmail token file (auto-generated) | `token.json`             |
+| `GMAIL_PROCESSED_LABEL`  | Gmail label for tracking processed emails | `mail-filter/processed`  |
+| `UNREAD_ONLY`            | Only process unread emails (`true`/`false`) | `false`                |
+| `MAX_EMAIL_BATCH_SIZE`   | Maximum emails per batch                  | `50`                     |
+| `EMAIL_PROCESSING_LIMIT` | Maximum emails to process (0 = unlimited) | `100`                    |
+| `CUSTOM_FILTERING_RULES` | Comma-separated custom rules              | Optional                 |
+| `LOG_LEVEL`              | Logging level                             | `info`                   |
 
 ### Example Custom Rules
 
@@ -112,13 +115,39 @@ This agent uses LangChain for workflow orchestration, with the following compone
 CUSTOM_FILTERING_RULES="Keep emails from my manager,Delete promotional emails with 'offer' in subject,Archive newsletters"
 ```
 
+### Available Models
+
+You can use any OpenAI chat model. Recommended options:
+- `gpt-4.1-mini` (default) - Fast and cost-effective
+- `gpt-4.1` - More capable, higher cost
+- `gpt-4.1-nano` - Fastest, lowest cost
+- `o4-mini` - Reasoning model for complex decisions
+
 ## How It Works
 
-1. **Email Retrieval**: The agent fetches unread emails from your Gmail inbox
+1. **Email Retrieval**: The agent fetches **unread** emails from your Gmail inbox
 2. **Batching**: Emails are processed in batches (max 50 at a time)
-3. **AI Analysis**: Each batch is sent to OpenAI GPT for analysis via LangChain
+3. **AI Analysis**: Each batch is sent to OpenAI for analysis (includes email age for smarter decisions)
 4. **Rule Application**: Custom filtering rules are applied to guide decisions
-5. **Action Execution**: Emails are either deleted or marked as read based on AI analysis
+5. **Action Execution**: Emails are deleted, archived, or marked as read based on AI analysis
+
+### How It Tracks Processed Emails
+
+The agent uses a **Gmail label** (`mail-filter/processed`) to track which emails have been processed:
+
+- Query: `in:inbox -label:mail-filter/processed` (all inbox emails NOT yet processed)
+- After processing each email, the label is added
+- This works for ALL emails, not just unread ones
+
+**Benefits**:
+- Process your entire inbox backlog, not just unread emails
+- Run multiple times safely - already processed emails are skipped
+- You can see processed emails in Gmail by clicking the label
+- To reprocess emails, just remove the label in Gmail
+
+**Preview mode**: No labels are added, so you can run `--preview` multiple times safely.
+
+**Legacy mode**: Set `UNREAD_ONLY=true` to only process unread emails (old behavior).
 
 ## Project Structure
 

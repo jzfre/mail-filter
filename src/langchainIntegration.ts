@@ -40,8 +40,12 @@ export class EmailFilteringChain {
   private aiProcessor: AIProcessor;
   private retryConfig: RetryConfig;
 
-  constructor(openaiApiKey: string, retryConfig?: Partial<RetryConfig>) {
-    this.aiProcessor = new AIProcessor(openaiApiKey);
+  constructor(
+    openaiApiKey: string,
+    openaiModel: string,
+    retryConfig?: Partial<RetryConfig>
+  ) {
+    this.aiProcessor = new AIProcessor(openaiApiKey, openaiModel);
     this.retryConfig = { ...DEFAULT_RETRY_CONFIG, ...retryConfig };
   }
 
@@ -76,13 +80,23 @@ export class EmailFilteringChain {
    */
   private prepareEmails(emails: Email[]): EmailSummary[] {
     logger.debug(`Preparing ${emails.length} emails for processing`);
+    const now = new Date();
 
-    return emails.map((email) => ({
-      id: email.id,
-      from: email.from,
-      subject: email.subject,
-      snippet: email.snippet || email.body.substring(0, 500),
-    }));
+    return emails.map((email) => {
+      const emailDate = new Date(email.date);
+      const ageInDays = Math.floor(
+        (now.getTime() - emailDate.getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      return {
+        id: email.id,
+        from: email.from,
+        subject: email.subject,
+        snippet: email.snippet || email.body.substring(0, 500),
+        dateStr: emailDate.toISOString().split("T")[0],
+        ageInDays,
+      };
+    });
   }
 
   /**

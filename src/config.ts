@@ -16,14 +16,18 @@ export function loadConfig(): AppConfig {
 
   return {
     openaiApiKey,
+    openaiModel: process.env.OPENAI_MODEL || "gpt-4.1-mini",
     gmailCredentialsFile:
       process.env.GMAIL_CREDENTIALS_FILE || "credentials.json",
     gmailTokenFile: process.env.GMAIL_TOKEN_FILE || "token.json",
+    gmailProcessedLabel:
+      process.env.GMAIL_PROCESSED_LABEL || "mail-filter/processed",
+    unreadOnly: process.env.UNREAD_ONLY === "true",
     maxEmailBatchSize: parseInt(process.env.MAX_EMAIL_BATCH_SIZE || "50", 10),
-    emailProcessingLimit: parseInt(
-      process.env.EMAIL_PROCESSING_LIMIT || "100",
-      10
-    ),
+    emailProcessingLimit:
+      process.env.EMAIL_PROCESSING_LIMIT === "0"
+        ? Infinity
+        : parseInt(process.env.EMAIL_PROCESSING_LIMIT || "100", 10),
     customFilteringRules: process.env.CUSTOM_FILTERING_RULES
       ? process.env.CUSTOM_FILTERING_RULES.split(",").map((rule: string) =>
           rule.trim()

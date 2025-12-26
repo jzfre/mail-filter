@@ -30,12 +30,16 @@ describe("AIProcessor", () => {
       from: "spam@example.com",
       subject: "Buy now! Limited offer!",
       snippet: "Amazing deals just for you...",
+      dateStr: "2025-12-01",
+      ageInDays: 21,
     },
     {
       id: "email-2",
       from: "boss@company.com",
       subject: "Q4 Planning Meeting",
       snippet: "Please review the attached documents...",
+      dateStr: "2025-12-20",
+      ageInDays: 2,
     },
   ];
 

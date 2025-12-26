@@ -20,6 +20,8 @@ export interface EmailSummary {
   from: string;
   subject: string;
   snippet: string;
+  dateStr: string;
+  ageInDays: number;
 }
 
 export type FilterAction = "delete" | "keep" | "archive" | "mark_read";
@@ -78,8 +80,11 @@ export interface GmailToken {
 
 export interface AppConfig {
   openaiApiKey: string;
+  openaiModel: string;
   gmailCredentialsFile: string;
   gmailTokenFile: string;
+  gmailProcessedLabel: string;
+  unreadOnly: boolean;
   maxEmailBatchSize: number;
   emailProcessingLimit: number;
   customFilteringRules: string[];

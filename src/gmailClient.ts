@@ -18,10 +18,17 @@ export class GmailClient {
   private gmail: gmail_v1.Gmail | null = null;
   private credentialsFile: string;
   private tokenFile: string;
+  private processedLabelId: string | null = null;
+  private processedLabelName: string;
 
-  constructor(credentialsFile: string, tokenFile: string) {
+  constructor(
+    credentialsFile: string,
+    tokenFile: string,
+    processedLabelName: string = "mail-filter/processed"
+  ) {
     this.credentialsFile = credentialsFile;
     this.tokenFile = tokenFile;
+    this.processedLabelName = processedLabelName;
   }
 
   /**
@@ -48,7 +55,49 @@ export class GmailClient {
     this.oauth2Client.setCredentials(token);
 
     this.gmail = google.gmail({ version: "v1", auth: this.oauth2Client });
-    logger.info("Gmail client initialized successfully");
+
+    // Get or create the processed label
+    this.processedLabelId = await this.getOrCreateLabel(this.processedLabelName);
+    logger.info(
+      `Gmail client initialized (processed label: ${this.processedLabelName})`
+    );
+  }
+
+  /**
+   * Get or create a Gmail label
+   */
+  private async getOrCreateLabel(labelName: string): Promise<string> {
+    if (!this.gmail) {
+      throw new Error("Gmail client not initialized");
+    }
+
+    // List existing labels
+    const response = await this.gmail.users.labels.list({ userId: "me" });
+    const labels = response.data.labels || [];
+
+    // Check if label exists
+    const existingLabel = labels.find((l) => l.name === labelName);
+    if (existingLabel?.id) {
+      logger.debug(`Found existing label: ${labelName}`);
+      return existingLabel.id;
+    }
+
+    // Create new label
+    logger.info(`Creating label: ${labelName}`);
+    const createResponse = await this.gmail.users.labels.create({
+      userId: "me",
+      requestBody: {
+        name: labelName,
+        labelListVisibility: "labelShow",
+        messageListVisibility: "show",
+      },
+    });
+
+    if (!createResponse.data.id) {
+      throw new Error(`Failed to create label: ${labelName}`);
+    }
+
+    return createResponse.data.id;
   }
 
   /**
@@ -125,27 +174,68 @@ export class GmailClient {
   }
 
   /**
-   * Fetch unread emails from Gmail
+   * Fetch emails from Gmail that haven't been processed yet
+   * @param unreadOnly - If true, only fetch unread emails (legacy behavior)
+   * @param maxResults - Maximum number of emails to fetch (Infinity = all)
    */
-  async getUnreadEmails(maxResults: number = 100): Promise<Email[]> {
+  async getEmails(
+    unreadOnly: boolean = false,
+    maxResults: number = 100
+  ): Promise<Email[]> {
     if (!this.gmail) {
       throw new Error("Gmail client not initialized. Call initialize() first.");
     }
 
-    logger.info(`Fetching up to ${maxResults} unread emails...`);
+    // Build query: inbox emails not already processed
+    let query = `in:inbox -label:${this.processedLabelName}`;
+    if (unreadOnly) {
+      query += " is:unread";
+    }
 
-    const response = await this.gmail.users.messages.list({
-      userId: "me",
-      q: "is:unread",
-      maxResults,
-    });
+    const isUnlimited = !Number.isFinite(maxResults);
+    const displayLimit = isUnlimited ? "all" : String(maxResults);
+    logger.info(`Fetching ${displayLimit} emails (query: ${query})...`);
 
-    const messages = response.data.messages || [];
-    logger.info(`Found ${messages.length} unread emails`);
+    // Gmail API max is 500 per request
+    const pageSize = isUnlimited ? 500 : Math.min(maxResults, 500);
+    const allMessages: gmail_v1.Schema$Message[] = [];
+    let pageToken: string | undefined;
+
+    // Paginate through results
+    do {
+      const response = await this.gmail.users.messages.list({
+        userId: "me",
+        q: query,
+        maxResults: pageSize,
+        pageToken,
+      });
+
+      const messages = response.data.messages || [];
+      allMessages.push(...messages);
+      pageToken = response.data.nextPageToken ?? undefined;
+
+      // Stop if we've reached the limit (for non-unlimited mode)
+      if (!isUnlimited && allMessages.length >= maxResults) {
+        break;
+      }
+
+      // Log progress for large fetches
+      if (isUnlimited && allMessages.length > 0 && allMessages.length % 500 === 0) {
+        logger.info(`  Fetched ${allMessages.length} message IDs so far...`);
+      }
+    } while (pageToken);
+
+    // Trim to exact limit if needed
+    const messagesToProcess = isUnlimited
+      ? allMessages
+      : allMessages.slice(0, maxResults);
+
+    logger.info(`Found ${messagesToProcess.length} emails to process`);
 
     const emails: Email[] = [];
 
-    for (const message of messages) {
+    for (let i = 0; i < messagesToProcess.length; i++) {
+      const message = messagesToProcess[i];
       if (message.id) {
         try {
           const email = await this.getEmailDetails(message.id);
@@ -155,10 +245,46 @@ export class GmailClient {
         } catch (error) {
           logger.error(`Failed to fetch email ${message.id}:`, error);
         }
+
+        // Log progress for large fetches
+        if ((i + 1) % 100 === 0) {
+          logger.info(`  Loaded ${i + 1}/${messagesToProcess.length} email details...`);
+        }
       }
     }
 
     return emails;
+  }
+
+  /**
+   * Mark an email as processed by adding the processed label
+   */
+  async markAsProcessed(emailId: string): Promise<boolean> {
+    if (!this.gmail || !this.processedLabelId) {
+      throw new Error("Gmail client not initialized");
+    }
+
+    try {
+      await this.gmail.users.messages.modify({
+        userId: "me",
+        id: emailId,
+        requestBody: {
+          addLabelIds: [this.processedLabelId],
+        },
+      });
+      logger.debug(`Marked email as processed: ${emailId}`);
+      return true;
+    } catch (error) {
+      logger.error(`Failed to mark email as processed ${emailId}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * @deprecated Use getEmails() instead
+   */
+  async getUnreadEmails(maxResults: number = 100): Promise<Email[]> {
+    return this.getEmails(true, maxResults);
   }
 
   /**

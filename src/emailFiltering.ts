@@ -18,18 +18,27 @@ export class EmailFilteringAgent {
   private rulesManager: RulesManager;
   private batchSize: number;
   private processingLimit: number;
+  private unreadOnly: boolean;
 
   constructor(
     gmailCredentialsFile: string,
     gmailTokenFile: string,
+    gmailProcessedLabel: string,
     openaiApiKey: string,
+    openaiModel: string,
     customRules: string[],
+    unreadOnly: boolean = false,
     batchSize: number = 50,
     processingLimit: number = 100
   ) {
-    this.gmailClient = new GmailClient(gmailCredentialsFile, gmailTokenFile);
-    this.filteringChain = new EmailFilteringChain(openaiApiKey);
+    this.gmailClient = new GmailClient(
+      gmailCredentialsFile,
+      gmailTokenFile,
+      gmailProcessedLabel
+    );
+    this.filteringChain = new EmailFilteringChain(openaiApiKey, openaiModel);
     this.rulesManager = new RulesManager(customRules);
+    this.unreadOnly = unreadOnly;
     this.batchSize = batchSize;
     this.processingLimit = processingLimit;
   }
@@ -59,17 +68,18 @@ export class EmailFilteringAgent {
     };
 
     try {
-      // Step 1: Fetch unread emails
-      const emails = await this.gmailClient.getUnreadEmails(
+      // Step 1: Fetch emails (either all unprocessed or unread only)
+      const emails = await this.gmailClient.getEmails(
+        this.unreadOnly,
         this.processingLimit
       );
 
       if (emails.length === 0) {
-        logger.info("No unread emails to process");
+        logger.info("No emails to process");
         return stats;
       }
 
-      logger.info(`Found ${emails.length} unread emails to process`);
+      logger.info(`Found ${emails.length} emails to process`);
 
       // Step 2: Run filtering chain
       const filterResult = await this.filteringChain.run(
@@ -116,7 +126,12 @@ export class EmailFilteringAgent {
       errors: 0,
     };
 
-    for (const decision of filterResult.decisions) {
+    const total = filterResult.decisions.length;
+    logger.info(`\n📬 Executing actions for ${total} emails...`);
+
+    for (let i = 0; i < total; i++) {
+      const decision = filterResult.decisions[i];
+
       try {
         const success = await this.executeAction(decision);
 
@@ -145,35 +160,70 @@ export class EmailFilteringAgent {
         );
         results.errors++;
       }
+
+      // Log progress every 100 emails
+      if ((i + 1) % 100 === 0 || i + 1 === total) {
+        const pct = Math.round(((i + 1) / total) * 100);
+        logger.info(
+          `   Progress: ${i + 1}/${total} (${pct}%) - ` +
+            `🗑️ ${results.deleted} deleted, 📁 ${results.archived} archived, ` +
+            `✅ ${results.kept} kept, 📖 ${results.markedRead} read`
+        );
+      }
+
+      // Rate limit: small delay between Gmail API calls to avoid overwhelming the API
+      if (i < total - 1 && decision.action !== "keep") {
+        await this.delay(100); // 100ms between API calls
+      }
     }
 
     return results;
   }
 
   /**
-   * Execute a single filtering action
+   * Utility delay function
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Execute a single filtering action and mark as processed
    */
   private async executeAction(decision: FilterDecision): Promise<boolean> {
     logger.debug(
       `Executing ${decision.action} for email ${decision.emailId}: ${decision.reason}`
     );
 
+    let success = false;
+
     switch (decision.action) {
       case "delete":
-        return this.gmailClient.deleteEmail(decision.emailId);
+        success = await this.gmailClient.deleteEmail(decision.emailId);
+        break;
       case "archive":
-        return this.gmailClient.archiveEmail(decision.emailId);
+        success = await this.gmailClient.archiveEmail(decision.emailId);
+        break;
       case "mark_read":
-        return this.gmailClient.markAsRead(decision.emailId);
+        success = await this.gmailClient.markAsRead(decision.emailId);
+        break;
       case "keep":
-        // No action needed for "keep"
-        return true;
+        // Mark as processed so it won't be picked up again
+        success = await this.gmailClient.markAsProcessed(decision.emailId);
+        break;
       default: {
         const _exhaustiveCheck: never = decision.action;
         logger.warn(`Unknown action: ${_exhaustiveCheck as FilterAction}`);
         return false;
       }
     }
+
+    // For non-keep actions, also mark as processed (in case email stays in inbox)
+    if (success && decision.action !== "keep") {
+      await this.gmailClient.markAsProcessed(decision.emailId);
+    }
+
+    return success;
   }
 
   /**
@@ -203,10 +253,13 @@ export class EmailFilteringAgent {
   async preview(): Promise<FilterDecision[]> {
     logger.info("Running in preview mode (no actions will be executed)...");
 
-    const emails = await this.gmailClient.getUnreadEmails(this.processingLimit);
+    const emails = await this.gmailClient.getEmails(
+      this.unreadOnly,
+      this.processingLimit
+    );
 
     if (emails.length === 0) {
-      logger.info("No unread emails to process");
+      logger.info("No emails to process");
       return [];
     }
 

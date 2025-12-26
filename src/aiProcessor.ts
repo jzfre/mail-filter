@@ -28,14 +28,16 @@ const AIResponseSchema = z.object({
  */
 export class AIProcessor {
   private model: ChatOpenAI;
+  private modelName: string;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, modelName: string = "gpt-4.1-mini") {
+    this.modelName = modelName;
     this.model = new ChatOpenAI({
       openAIApiKey: apiKey,
-      modelName: "gpt-4o",
+      modelName: this.modelName,
       temperature: 0.1, // Low temperature for consistent decisions
     });
-    logger.info("AI Processor initialized with GPT-4o");
+    logger.info(`AI Processor initialized with ${this.modelName}`);
   }
 
   /**
@@ -93,27 +95,35 @@ export class AIProcessor {
 ${rulesText}
 
 ## Available Actions:
-- "delete": Move email to trash (for spam, unwanted promotional emails)
-- "keep": Keep in inbox as unread (for important emails)
-- "archive": Remove from inbox but keep (for newsletters, less urgent items)
+- "delete": Move email to trash (for spam, unwanted promotional emails, expired/obsolete content)
+- "keep": Keep in inbox as unread (for important emails that need attention)
+- "archive": Remove from inbox but keep (for newsletters, less urgent items, reference material)
 - "mark_read": Mark as read but keep in inbox
+
+## Important: Consider Email Age
+Each email includes its age in days. Use this to make smarter decisions:
+- **Time-sensitive content that has expired**: Download links, verification codes, limited-time offers, event invitations for past dates - if the email is old (7+ days), these are likely expired and should be DELETED or ARCHIVED
+- **Old newsletters/digests**: If older than 14 days and unread, likely no longer relevant - ARCHIVE or DELETE
+- **Old promotional emails**: DELETE - the offers have expired
+- **Conversations/threads**: Even if old, may still be relevant for reference - consider ARCHIVE instead of DELETE
 
 ## Response Format:
 Respond with a JSON object containing an array of decisions. Each decision must have:
 - emailId: The ID of the email
 - action: One of "delete", "keep", "archive", "mark_read"
-- reason: Brief explanation for the decision
+- reason: Brief explanation for the decision (mention age if relevant)
 - confidence: A number between 0 and 1 indicating confidence in the decision
 
 Example response:
 {
   "decisions": [
     {"emailId": "abc123", "action": "delete", "reason": "Promotional spam", "confidence": 0.95},
-    {"emailId": "def456", "action": "keep", "reason": "Important work email", "confidence": 0.9}
+    {"emailId": "def456", "action": "delete", "reason": "Download link expired (30 days old)", "confidence": 0.9},
+    {"emailId": "ghi789", "action": "archive", "reason": "Old newsletter, no longer timely", "confidence": 0.85}
   ]
 }
 
-Be conservative - when in doubt, keep the email. Never delete potentially important emails.`;
+Be conservative with recent emails. For old emails with time-sensitive content, lean towards delete/archive.`;
   }
 
   /**
@@ -122,10 +132,18 @@ Be conservative - when in doubt, keep the email. Never delete potentially import
   private buildUserPrompt(emails: EmailSummary[]): string {
     const emailsList = emails
       .map((email, i) => {
+        const ageLabel =
+          email.ageInDays === 0
+            ? "today"
+            : email.ageInDays === 1
+              ? "1 day ago"
+              : `${email.ageInDays} days ago`;
+
         return `[Email ${i + 1}]
 ID: ${email.id}
 From: ${email.from}
 Subject: ${email.subject}
+Date: ${email.dateStr} (${ageLabel})
 Preview: ${email.snippet.substring(0, 200)}${
           email.snippet.length > 200 ? "..." : ""
         }
