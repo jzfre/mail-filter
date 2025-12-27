@@ -57,7 +57,9 @@ export class GmailClient {
     this.gmail = google.gmail({ version: "v1", auth: this.oauth2Client });
 
     // Get or create the processed label
-    this.processedLabelId = await this.getOrCreateLabel(this.processedLabelName);
+    this.processedLabelId = await this.getOrCreateLabel(
+      this.processedLabelName
+    );
     logger.info(
       `Gmail client initialized (processed label: ${this.processedLabelName})`
     );
@@ -220,7 +222,11 @@ export class GmailClient {
       }
 
       // Log progress for large fetches
-      if (isUnlimited && allMessages.length > 0 && allMessages.length % 500 === 0) {
+      if (
+        isUnlimited &&
+        allMessages.length > 0 &&
+        allMessages.length % 500 === 0
+      ) {
         logger.info(`  Fetched ${allMessages.length} message IDs so far...`);
       }
     } while (pageToken);
@@ -248,7 +254,9 @@ export class GmailClient {
 
         // Log progress for large fetches
         if ((i + 1) % 100 === 0) {
-          logger.info(`  Loaded ${i + 1}/${messagesToProcess.length} email details...`);
+          logger.info(
+            `  Loaded ${i + 1}/${messagesToProcess.length} email details...`
+          );
         }
       }
     }
