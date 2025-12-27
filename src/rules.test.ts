@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { RulesManager } from "./rules.js";
 
 describe("RulesManager", () => {
@@ -141,4 +141,3 @@ describe("RulesManager", () => {
     });
   });
 });
-

@@ -87,7 +87,7 @@ describe("Logger", () => {
       logger.info("test message");
 
       expect(consoleSpy.info).toHaveBeenCalledWith(
-        expect.stringMatching(/^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/),
+        expect.stringMatching(/^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
         // No additional args
       );
     });
@@ -137,4 +137,3 @@ describe("Logger", () => {
     });
   });
 });
-
